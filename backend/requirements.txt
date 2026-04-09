@@ -1,0 +1,8 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pandas==2.3.2
+numpy==2.3.2
+requests==2.32.5
+scikit-learn==1.7.1
+PuLP==3.2.2
+pgeocode==0.5.0
