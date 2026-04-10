@@ -44,7 +44,8 @@ Example local-plan payload:
   "charger_type": "level2"
 }
 ```
-##Interface Design
+
+## Interface Design
 
 <img width="1217" height="301" alt="433_image1" src="https://github.com/user-attachments/assets/eef8fb2a-e63e-4d32-90b9-e8bf59002112" />
 
