@@ -5,8 +5,8 @@ function App() {
     <div className="shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Ontario EV Charging Planner</p>
-          <h1>Plan EV chargers city by city, then drill down to each FSA.</h1>
+          <p className="eyebrow">Plan EV chargers city by city, then drill down to each FSA.</p>
+          <h1>Ontario EV Charging Planner</h1>
         </div>
       </header>
       <DashboardPage />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import LocalSitingMap from '../components/LocalSitingMap'
 import MetricCard from '../components/MetricCard'
 import OntarioMap from '../components/OntarioMap'
@@ -84,6 +84,7 @@ export default function DashboardPage() {
 
   const cityOptions = [...new Set(regions.map((region) => region.city_label))].sort((left, right) => left.localeCompare(right))
   const cityRegions = selectedCityLabel ? regions.filter((region) => region.city_label === selectedCityLabel) : regions
+  const hasMultipleFsasInCity = cityRegions.length > 1
   const siteCost = chargerType === 'dc_fast' ? 400_000 : 120_000
   const maxAffordableSites = Math.floor(budget / siteCost)
   const maxLocalAffordableSites = Math.floor(localBudget / siteCost)
@@ -116,6 +117,7 @@ export default function DashboardPage() {
     async function loadLocalPlan() {
       setLoadingLocalPlan(true)
       setLocalPlanError(null)
+      setLocalPlan(null)
       try {
         const nextPlan = await getLocalPlan({
           focus_fsa: focusFsa,
@@ -148,14 +150,6 @@ export default function DashboardPage() {
   if (error || !overview) {
     return <div className="error">{error ?? 'The dashboard could not be rendered.'}</div>
   }
-
-  const underservedTop = [...cityRegions]
-    .sort((a, b) => b.underserved_score - a.underserved_score)
-    .slice(0, 10)
-    .map((region) => ({
-      fsa: region.fsa,
-      score: Number(region.underserved_score.toFixed(2)),
-    }))
 
   const selectedRegion = cityRegions.find((region) => region.fsa === selectedFsa) ?? cityRegions[0] ?? regions[0] ?? null
   const applyScenario = () => {
@@ -326,17 +320,23 @@ export default function DashboardPage() {
             </div>
             <div className="control-row">
               <label htmlFor="fsaSelect">FSA focus</label>
-              <select
-                id="fsaSelect"
-                value={selectedRegion?.fsa ?? ''}
-                onChange={(event) => handleSelectFsa(event.target.value)}
-              >
-                {cityRegions.map((region) => (
-                  <option key={region.fsa} value={region.fsa}>
-                    {region.fsa} - {region.city_label}
-                  </option>
-                ))}
-              </select>
+              {hasMultipleFsasInCity ? (
+                <select
+                  id="fsaSelect"
+                  value={selectedRegion?.fsa ?? ''}
+                  onChange={(event) => handleSelectFsa(event.target.value)}
+                >
+                  {cityRegions.map((region) => (
+                    <option key={region.fsa} value={region.fsa}>
+                      {region.fsa} - {region.city_label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="control-value" aria-live="polite">
+                  {selectedRegion ? `${selectedRegion.fsa} - ${selectedRegion.city_label}` : 'No FSA available'}
+                </div>
+              )}
             </div>
             <button className="button-primary" type="button" onClick={applyScenario}>
               Apply Scenario
@@ -536,31 +536,40 @@ export default function DashboardPage() {
           </div>
 
           <div className="local-sites-table">
-            <h3>Recommended Placements Inside {selectedRegion.fsa}</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Placement</th>
-                  <th>Type</th>
-                  <th>Busy score</th>
-                  <th>Assigned forecast EVs</th>
-                  <th>Avg. drive</th>
-                  <th>Distance saved</th>
-                </tr>
-              </thead>
-              <tbody>
-                {localPlanSites.map((site) => (
-                  <tr key={site.site_name}>
-                    <td>{site.site_name}</td>
-                    <td>{site.candidate_type}</td>
-                    <td>{site.busy_area_score.toFixed(1)}</td>
-                    <td>{Math.round(site.assigned_forecast_evs).toLocaleString()}</td>
-                    <td>{site.average_drive_km.toFixed(1)} km</td>
-                    <td>{site.distance_savings_km.toFixed(1)} km</td>
+            <h3>
+              Recommended Placements Inside {selectedRegion.fsa}
+              {localPlan ? ` (${localPlan.summary.selected_sites} selected)` : ''}
+            </h3>
+            {loadingLocalPlan ? (
+              <p className="detail-copy">Refreshing recommended placements for the applied local plan.</p>
+            ) : localPlanSites.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Placement</th>
+                    <th>Type</th>
+                    <th>Busy score</th>
+                    <th>Assigned forecast EVs</th>
+                    <th>Avg. drive</th>
+                    <th>Distance saved</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {localPlanSites.map((site) => (
+                    <tr key={site.site_name}>
+                      <td>{site.site_name}</td>
+                      <td>{site.candidate_type}</td>
+                      <td>{site.busy_area_score.toFixed(1)}</td>
+                      <td>{Math.round(site.assigned_forecast_evs).toLocaleString()}</td>
+                      <td>{site.average_drive_km.toFixed(1)} km</td>
+                      <td>{site.distance_savings_km.toFixed(1)} km</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="detail-copy">No placements are currently available for this applied local plan.</p>
+            )}
           </div>
         </section>
       ) : null}
@@ -582,26 +591,6 @@ export default function DashboardPage() {
                 <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
                 <Area type="monotone" dataKey="total_ev" stroke="#c96e2b" fill="rgba(201,110,43,0.22)" />
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Most Underserved FSAs In This City Area</h2>
-              <p className="panel-copy">These are the strongest current candidates within the selected city area before optimization is applied.</p>
-            </div>
-          </div>
-          <div className="chart-shell">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={underservedTop}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="fsa" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="score" fill="#155f4d" radius={[8, 8, 0, 0]} />
-              </BarChart>
             </ResponsiveContainer>
           </div>
         </section>
